@@ -1,5 +1,7 @@
 # 迷
 
+![《迷》](images/cover.png)
+
 一处地方，一个人，和这地方里唯一会动的那样东西。
 
 *Not a horror game. Nothing to hide from, nothing to win. You say what you want to do in one sentence; the place decides what happens after that. It may lie to you. It may lie to itself.*
@@ -9,6 +11,8 @@
 ---
 
 ## 玩起来是什么样
+
+![一局的样子](images/a-run.png)
 
 下面是真玩的一局，一个字没改。
 
@@ -51,6 +55,8 @@ export RUN_MODEL=gpt-4o-mini
 只要是 OpenAI 兼容的 chat completions 接口、支持 `response_format: json_object`，都能用。
 
 存档在 `saves_bare/`，出戏的结局写一行进 `records/index.jsonl`。
+
+![三步](images/three-steps.png)
 
 ## 接进客户端
 
@@ -111,6 +117,8 @@ deepseek-chat 的话，一轮几分钱。一局十几二十轮。
 
 ## 它守着的几条
 
+![没有地图](images/no-map.png)
+
 **不替你决定。** 不写你的心里话、你的感受、你的动作。你说“我往南走”，它只能写南边什么样，不能写你其实在害怕。
 
 **人可以骗你，系统不骗你。** 场、人、祂是三样东西。这地方只有一个声音是祂的；人的话是人自己说的，署人的名。祂不能替人开口——偶尔会，服务器会把那句吞掉。
@@ -138,6 +146,8 @@ python3 _test_audit.py   # 边界：越权、并发、回滚、结算一致性
 全部用假导演，不碰模型，不花钱。
 
 ## 已知的毛病
+
+![现在还不完美](images/not-perfect.png)
 
 - 祂偶尔还是会顶人的身份说话（“我熬糖的锅”）。抄人和转述那两种服务器会当场丢掉，顶身份这种只能靠提示词，拦不干净。
 - 人说话的密度不稳。有时候一局里两个人都说得很足，有时候祂一句不吭、人也不吭，只有地方在动。
