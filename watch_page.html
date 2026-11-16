@@ -1,0 +1,354 @@
+<!doctype html><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>《迷》· 观景窗</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#100e0c;color:#d9d0c3;
+  font:16px/1.75 'Microsoft YaHei',-apple-system,'Segoe UI',sans-serif}
+#bar{position:sticky;top:0;z-index:6;background:rgba(20,17,14,.96);
+  backdrop-filter:blur(6px);border-bottom:1px solid #2a2622}
+#top{display:flex;gap:10px;align-items:baseline;padding:8px 14px 4px;font-size:13px;color:#a89a86}
+#top b{color:#e6dac7;font-weight:600;letter-spacing:1px}
+#top a{margin-left:auto;color:#7d7264;text-decoration:none}
+#tabs{display:flex;gap:8px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:1px solid #2a2622;background:#171410;color:#9c9282;
+  padding:6px 12px;border-radius:999px;font-size:13px;cursor:pointer;white-space:nowrap}
+.tab .s{color:#6f6558;font-size:11px;margin-left:6px}
+.tab.on{border-color:#7a5f42;background:#241c14;color:#ecdcc2}
+.tab .x{color:#5f574c;margin-left:8px;font-size:13px}
+.tab .x:hover{color:#c06a52}
+#addwrap{margin-left:auto;display:flex;gap:6px;align-items:center}
+#addtok{background:#0e0c0a;border:1px solid #2a2622;color:#a89a86;
+  padding:3px 8px;font-size:11px;width:120px;outline:none}
+#addbtn{background:#1c1814;border:1px solid #2a2622;color:#a89a86;
+  padding:3px 10px;font-size:11px;cursor:pointer}
+#addbtn:hover{border-color:#7a5f42;color:#e6dac7}
+#seats{display:flex;gap:6px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:none}
+#seats::-webkit-scrollbar{display:none}
+.seat{flex:0 0 auto;border:1px solid #2a2622;color:#9c9282;padding:4px 10px;
+  border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap}
+.seat.on{border-color:#7a5f42;color:#ecdcc2;background:#241c14}
+#log{max-width:860px;margin:0 auto;padding:16px 16px 40vh}
+.e{margin:0 0 9px;display:flex;gap:10px;align-items:baseline}
+.who{flex:0 0 auto;font-size:11px;letter-spacing:1px;color:#5f574c;min-width:64px}
+.t{white-space:pre-wrap;word-break:break-word;flex:1}
+.you .t{color:#d8c9ae}
+.it .t{color:#cf8a63;font-size:17px}
+.sc .t{color:#9c9282;font-size:15px}
+.np .t{color:#8fb3a6;font-size:16px}
+.sys .t{color:#c06a52}
+#empty{max-width:860px;margin:60px auto;text-align:center;color:#5f574c;font-size:14px}
+#foot{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:7px;
+  font-size:11px;color:#4a423a;background:linear-gradient(rgba(16,14,12,0),rgba(16,14,12,.92))}
+.you{color:#e6ded0}.it{color:#d8a13c;font-weight:600}.sc{color:#8f8778}.sys{color:#7a6f5f}.np{color:#8fb3a6;font-weight:600}
+</style>
+<div id=bar>
+  <div id=top><b>观景窗</b><span id=meta>连接中…</span>
+    <span id=addwrap><input id=addtok placeholder="贴一张牌"><button id=addbtn>加牌</button></span>
+  </div>
+  <div id=tabs></div>
+  <div id=seats></div>
+</div>
+<div id=empty>右上角那个框，贴一张牌进来</div>
+<div id=log></div>
+<div id=foot>只读 · 上面一排是牌，第二排是这一局里的座位 · 往上翻它就不动</div>
+<script>
+const log=document.getElementById('log'), meta=document.getElementById('meta');
+const tabs=document.getElementById('tabs'), seats=document.getElementById('seats');
+const empty=document.getElementById('empty');
+const addtok=document.getElementById('addtok'), addbtn=document.getElementById('addbtn');
+let cards=[], cur=0, near=true, busy=false;
+const enc=encodeURIComponent;
+
+function mk(t){ return {token:t, seats:[], sid:'', logs:{}, bad:false}; }
+function logsOf(c,sid){ if(!c.logs[sid]) c.logs[sid]={e:[],n:0}; return c.logs[sid]; }
+function curLog(c){ return c.sid ? logsOf(c,c.sid) : null; }
+function load(){
+  let toks=[];
+  try{ toks=JSON.parse(localStorage.getItem('mi_cards')||'[]'); }catch(e){ toks=[]; }
+  if(window.__tok){ toks=[window.__tok].concat(toks.filter(t=>t!==window.__tok)); }
+  return toks.map(mk);
+}
+function save(){ localStorage.setItem('mi_cards', JSON.stringify(cards.map(c=>c.token))); }
+cards=load(); save();
+
+log.addEventListener('scroll',()=>{ near = log.scrollHeight-log.scrollTop-log.clientHeight < 140; });
+
+function add(cls,who,text){
+  const d=document.createElement('div'); d.className='e '+cls;
+  const w=document.createElement('span'); w.className='who'; w.textContent=who;
+  const t=document.createElement('span'); t.className='t'; t.textContent=text;
+  d.appendChild(w); d.appendChild(t); log.appendChild(d);
+}
+function stick(){ if(near) log.scrollTop=log.scrollHeight; }
+function here(c){ return c.seats.find(s=>s.sid===c.sid) || c.seats[0] || null; }
+
+function render(){
+  tabs.innerHTML=''; seats.innerHTML='';
+  cards.forEach((c,i)=>{
+    const b=document.createElement('div');
+    b.className='tab'+(i===cur?' on':'');
+    const s=here(c);
+    b.textContent = s ? s.seat : (c.bad ? '这张牌没用了' : ('牌 '+c.token.slice(0,4)));
+    const st=document.createElement('span'); st.className='s';
+    st.textContent = s ? (' '+s.state) : '';
+    b.appendChild(st);
+    const x=document.createElement('span'); x.className='x'; x.textContent='×';
+    x.title='删掉这张牌';
+    x.onclick=(ev)=>{ ev.stopPropagation(); dropCard(i); };
+    b.appendChild(x);
+    b.onclick=()=>{ if(i===cur) return; cur=i; render(); drawLog(); };
+    tabs.appendChild(b);
+  });
+  const c=cards[cur];
+  if(c && c.seats.length>1){
+    c.seats.forEach(s=>{
+      const d=document.createElement('div');
+      d.className='seat'+(s.sid===c.sid?' on':'');
+      d.textContent=s.seat+' · '+s.state;
+      d.onclick=()=>{ if(s.sid===c.sid) return; c.sid=s.sid; render(); drawLog(); pullOne(c); };
+      seats.appendChild(d);
+    });
+  }
+}
+function drawLog(){
+  const c=cards[cur]; log.innerHTML='';
+  if(!c){ empty.style.display='block'; return; }
+  const L=curLog(c), arr=L?L.e:[];
+  empty.style.display = arr.length ? 'none' : 'block';
+  for(const e of arr){
+    const cls = e.who==='你' ? 'you' : ((e.who==='它'||e.who==='祂') ? 'it'
+      : (e.who==='结算' ? 'sys' : (e.who==='场景' ? 'sc' : 'np')));
+    add(cls, e.t ? (e.who+' '+e.t) : e.who, e.text);
+  }
+  const s=here(c);
+  meta.textContent = s ? (s.seat+' · '+s.state+(s.scene?(' · '+s.scene):'')+
+    ' · '+s.keep+(s.hp!=null?(' · 气力 '+s.hp):'')+(s.wound?(' · '+s.wound):'')+
+    (s.traits?('　｜　'+s.traits):'')+(s.motive?('　｜　想要：'+s.motive):''))
+    : (c.bad ? '这张牌看不见任何一局' : '等着…');
+  near=true; stick();
+}
+function dropCard(i){
+  if(cards.length<=1){ cards[i].logs={}; cards[i].sid=''; save(); drawLog(); return; }
+  cards.splice(i,1);
+  if(cur>=cards.length) cur=cards.length-1;
+  save(); render(); drawLog();
+}
+function addCard(){
+  const t=addtok.value.trim();
+  if(!t) return;
+  if(cards.find(c=>c.token===t)){ addtok.value=''; return; }
+  cards.push(mk(t)); addtok.value=''; save(); cur=cards.length-1;
+  render(); drawLog(); pullOne(cards[cur]);
+}
+addbtn.onclick=addCard;
+addtok.onkeydown=(e)=>{ if(e.key==='Enter') addCard(); };
+
+async function pull(c){
+  const L = c.sid ? logsOf(c,c.sid) : {e:[],n:0};
+  const qs='/watch/data'
+    +(c.sid ? ('?seat='+enc(c.sid)+'&since='+(L.n||0)) : '?since=0');
+  let d;
+  try{
+    const r=await fetch(qs,{cache:'no-store',headers:{'Authorization':'Bearer '+c.token}});
+    if(r.status===401){ c.bad=true; return; }
+    d=await r.json();
+  }catch(err){ return; }
+  c.bad=false;
+  c.seats=d.seats||[];
+  if(!c.sid || !c.seats.some(s=>s.sid===c.sid)){
+    c.sid = d.sid || (c.seats[0] && c.seats[0].sid) || '';
+  }
+  const L2=logsOf(c,c.sid);
+  // 服务重启过：它的流水从头数了，我手里的游标反而是“未来”的——清空重取一遍
+  if(d.cursor !== undefined && d.cursor < (L2.n||0)){
+    L2.e=[]; L2.n=0;
+    try{ d=await (await fetch('/watch/data?seat='+enc(c.sid)+'&since=0',
+         {cache:'no-store',headers:{'Authorization':'Bearer '+c.token}})).json(); }catch(err){ return; }
+  }
+  for(const e of (d.entries||[])) if(!e.sid || e.sid===c.sid) L2.e.push(e);
+  // Full watch history is independent of the director's rolling memory; never silently drop rows.
+  L2.n = d.cursor || L2.n || 0;
+}
+async function pullOne(c){ await pull(c); render(); drawLog(); }
+async function poll(){
+  if(busy) return; busy=true;
+  await Promise.all(cards.map(pull));
+  busy=false;
+  render();
+  if(cards[cur]) drawLog();
+  setTimeout(poll,2200);
+}
+// ---- 外界的两只手：一个对机，一个对导演 ----
+const bar = document.createElement('div');
+bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#17140f;' +
+  'border-top:1px solid #2a2622;padding:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom));' +
+  'display:flex;flex-wrap:wrap;gap:6px;' +
+  'align-items:center;font:13px sans-serif;z-index:9';
+bar.innerHTML =
+  '<input id="i_say" placeholder="对机说一句（会显示成祂说）" style="flex:1;background:#0e0c0a;' +
+  'color:#d8cfc2;border:1px solid #2a2622;padding:6px">' +
+  '<button id="b_say">发给机</button>' + 
+  '<span id="i_left" style="color:#a89a86"></span>';
+document.body.appendChild(bar);
+function fitBar() {
+  const narrow = window.innerWidth < 720;
+  bar.querySelectorAll('input').forEach(i => { i.style.flex = narrow ? '1 1 100%' : '1 1 220px'; });
+  bar.querySelectorAll('button').forEach(b => { b.style.flex = narrow ? '1 1 28%' : '0 0 auto'; });
+  requestAnimationFrame(() => {
+    document.body.style.paddingBottom = (bar.getBoundingClientRect().height + 16) + 'px';
+    try { placeFloat(); } catch (e) {}
+  });
+}
+fitBar();
+window.addEventListener('resize', fitBar);
+async function intr(to) {
+  const el = document.getElementById('i_say');
+  const t = (el.value || '').trim();
+  if (!t) return;
+  const r = await fetch('/intr', {method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer ' + ((cards[cur] && cards[cur].token) || window.__tok || '')},
+    body: JSON.stringify({text: t, to: to})});
+  const j = await r.json();
+  document.getElementById('i_left').textContent =
+    j.ok ? ('剩 ' + j.left + ' 次') : (j.note || '不行');
+  if (j.ok) el.value = '';
+}
+const row = document.createElement('div');
+row.style.cssText = 'display:flex;gap:6px;align-items:center;color:#a89a86';
+row.innerHTML = '<span>小游戏换次数：</span>' +
+  '<button data-g="dice:big">赌大</button><button data-g="dice:small">赌小</button>' +
+  '<button data-g="coin:正">猜正</button><button data-g="coin:反">猜反</button>' +
+  '<button data-g="card:">21点</button><span id="g_out"></span>';
+bar.appendChild(row);
+row.querySelectorAll('button').forEach(b => b.onclick = async () => {
+  const [game, bet] = b.dataset.g.split(':');
+  const r = await fetch('/game', {method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer ' + ((cards[cur] && cards[cur].token) || window.__tok || '')},
+    body: JSON.stringify({game: game, bet: bet})});
+  const j = await r.json();
+  document.getElementById('g_out').textContent =
+    j.ok ? ((j.win ? '赢：' : '输：') + j.line + ' 剩 ' + j.left + ' 次') : (j.note || '');
+  document.getElementById('i_left').textContent = j.ok ? ('剩 ' + j.left + ' 次') : '';
+});
+// ---- 剧情引导（第一次进来自己弹出） ----
+const help = document.createElement('div');
+help.style.cssText = 'position:fixed;inset:8% 6% auto 6%;max-height:74vh;overflow:auto;' +
+  'background:#17140f;border:1px solid #2a2622;padding:18px 20px;z-index:12;' +
+  'font:14px/1.9 "Microsoft YaHei",sans-serif;color:#d8cfc2;display:none';
+help.innerHTML =
+  '<div style="color:#a89a86;letter-spacing:2px;margin-bottom:10px">这是什么 · 怎么插手</div>' +
+  '<p><b>这一局</b>：玩家（一台机）带着怀里那样东西走到出口。地图、陈设、旧痕、祂说的话，' +
+  '全是这一局现长的——换一局就换一个地方。</p>' +
+  '<p><b>你是谁</b>：屏幕外面的人。你能伸两只手进去，这一局一共五次。</p>' +
+  '<p><b>对机说一句</b>：玩家会看到「祂说：…」。他分不出这句是祂说的还是人说的——' +
+  '这正是好玩的地方。写具体、和这局有关的话，祂会接；纯捣蛋的话祂不理。</p>' +
+  '<p><b>和祂说话</b>：玩家看不见。加一道门、放个陷阱、拿走他兜里的东西、' +
+  '让祂这会儿靠近——落成的东西他会当真。</p>' +
+  '<p><b>小游戏</b>：赌大／赌小、猜正、猜反、21点。每样最多五把，赢一把多一次手，最多十次。</p>' +
+  '<p><b>什么话更容易被用上</b>：<br>· 具体的：往哪边、哪样东西、哪个人、什么时候。<br>· 有条件才好兑现：“只要他停下，就让他听见水声”“他每次回头，都让他看见一样东西”。<br>· 一句话一件事。一件事里塞三件以上，只会做前三件。<br>· 对机那句话，贴着这局的人和事；太离谱的祂不理。<br>· 立了规矩不必马上兑现——祂自己挑时候。**发了五条只用上两句是正常的**，不是坏了。</p><p style="color:#8a7d6c">看流水：上边是牌，一张牌一局；橙色是祂说的，白色是你说的，青色是那里的人说的。</p>' +
+  '<div style="text-align:right"><button id="h_close">知道了</button></div>';
+document.body.appendChild(help);
+const hb = document.createElement('button');
+hb.textContent = '?';
+hb.style.cssText = 'border:1px solid #2a2622;background:#0e0c0a;color:#a89a86;padding:4px 9px';
+hb.onclick = () => { help.style.display = 'block'; };
+bar.appendChild(hb);
+help.querySelector('#h_close').onclick = () => {
+  help.style.display = 'none';
+  try { localStorage.setItem('mi_help', '1'); } catch (e) {}
+};
+try { if (!localStorage.getItem('mi_help')) help.style.display = 'block'; } catch (e) {}
+let _lastTok = null;
+setInterval(() => {
+  const t = (cards[cur] && cards[cur].token) || '';
+  if (t !== _lastTok) {
+    _lastTok = t;
+    const el = document.getElementById('i_left');
+    if (el) el.textContent = '';
+    const g = document.getElementById('g_out');
+    if (g) g.textContent = '';
+  }
+}, 400);
+// ---- 和祂说话：右下角悬浮小窗 ----
+const fab = document.createElement('div');
+fab.textContent = '和祂说话';
+fab.style.cssText = 'position:fixed;right:14px;background:#17140f;border:1px solid #2a2622;' +
+  'color:#d8cfc2;padding:9px 14px;border-radius:18px;font:13px sans-serif;cursor:pointer;z-index:11';
+const chat = document.createElement('div');
+chat.style.cssText = 'position:fixed;right:14px;width:330px;max-width:86vw;' +
+  'background:#17140f;border:1px solid #2a2622;display:none;flex-direction:column;z-index:12;' +
+  'font:13px/1.7 sans-serif;color:#d8cfc2';
+// 浮窗得站在底栏上面——手机上底栏会折成三四行，写死的 bottom 会被压在栏里
+function placeFloat() {
+  const h = bar.getBoundingClientRect().height;
+  fab.style.bottom = (h + 12) + 'px';
+  chat.style.bottom = (h + 12) + 'px';
+  const narrow = window.innerWidth < 720;
+  if (narrow) {
+    chat.style.left = '0';
+    chat.style.right = '0';
+    chat.style.width = '100%';
+    chat.style.maxWidth = '100%';
+    chat.style.height = Math.max(260, Math.round(window.innerHeight * 0.52)) + 'px';
+    chat.style.borderLeft = 'none';
+    chat.style.borderRight = 'none';
+  } else {
+    chat.style.left = 'auto';
+    chat.style.right = '14px';
+    chat.style.width = '330px';
+    chat.style.maxWidth = '86vw';
+    chat.style.height = '44vh';
+    chat.style.borderLeft = '1px solid #2a2622';
+    chat.style.borderRight = '1px solid #2a2622';
+  }
+}
+chat.innerHTML = '<div style="padding:6px 10px;border-bottom:1px solid #2a2622;color:#a89a86">' +
+  '祂 <span id="ch_min" style="float:right;cursor:pointer">—</span></div>' +
+  '<div id="ch_log" style="flex:1;overflow:auto;padding:10px"></div>' +
+  '<div style="display:flex;gap:6px;padding:8px;border-top:1px solid #2a2622">' +
+  '<input id="ch_in" placeholder="对祂说话（只有你听得见）" style="flex:1;min-width:0;background:#0e0c0a;' +
+  'color:#d8cfc2;border:1px solid #2a2622;padding:6px"><button id="ch_send">说</button></div>';
+document.body.appendChild(fab);
+document.body.appendChild(chat);
+placeFloat();
+window.addEventListener('resize', placeFloat);
+window.addEventListener('orientationchange', () => setTimeout(placeFloat, 250));
+// 手机键盘弹出来时，把浮窗整个顶到键盘上面去——不然输入框就在键盘底下
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const lift = () => {
+    const gap = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
+    chat.style.transform = gap > 80 ? 'translateY(-' + gap + 'px)' : '';
+  };
+  vv.addEventListener('resize', lift);
+  vv.addEventListener('scroll', lift);
+}
+fab.onclick = () => { chat.style.display = 'flex'; fab.style.display = 'none'; };
+document.getElementById('ch_min').onclick = () => { chat.style.display = 'none'; fab.style.display = 'block'; };
+function chAdd(cls, t) {
+  const d = document.createElement('div');
+  d.style.color = cls === 'ta' ? '#c9a227' : '#d8cfc2';
+  d.textContent = t;
+  document.getElementById('ch_log').appendChild(d);
+  document.getElementById('ch_log').scrollTop = 1e6;
+}
+async function chSend() {
+  const el = document.getElementById('ch_in');
+  const t = (el.value || '').trim();
+  if (!t) return;
+  el.value = '';
+  chAdd('me', '你：' + t);
+  const r = await fetch('/talk', {method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer ' + ((cards[cur] && cards[cur].token) || window.__tok || '')}, body: JSON.stringify({text: t})});
+  const j = await r.json();
+  chAdd('ta', '祂：' + (j.reply || ''));
+  if (j.did) chAdd('ta', '（祂动了：' + j.did + '）');
+}
+document.getElementById('ch_send').onclick = chSend;
+document.getElementById('ch_in').onkeydown = e => { if (e.key === 'Enter') chSend(); };
+document.getElementById('b_say').onclick = () => intr('player');
+document.getElementById('i_say').onkeydown = e => { if (e.key === 'Enter') intr('player'); };
+render(); drawLog(); poll();
+</script>
