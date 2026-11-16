@@ -10,9 +10,9 @@ import os
 import time
 import urllib.request
 
-API = "https://api.deepseek.com/v1/chat/completions"
+API = os.environ.get("RUN_API", "https://api.deepseek.com/v1/chat/completions")
 KEY = os.environ.get("RUN_KEY", "")
-MODEL = "deepseek-chat"
+MODEL = os.environ.get("RUN_MODEL", "deepseek-chat")
 SAVES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saves_bare")
 
 SYS = """你是一处地方，也是这地方里唯一会动的那样东西。
